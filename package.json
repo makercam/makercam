@@ -15,7 +15,7 @@
     "typescript": "^3.2.2"
   },
   "dependencies": {
-    "@makercam/openjscam": "0.0.2",
+    "@makercam/openjscam": "0.0.3",
     "clipper-lib": "^6.2.1",
     "js-angusj-clipper": "^1.0.0",
     "makerjs": "^0.13.1",
