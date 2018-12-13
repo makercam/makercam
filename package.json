@@ -1,0 +1,24 @@
+{
+  "name": "makercam",
+  "version": "0.0.1",
+  "description": "",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "js-angusj-clipper": "^1.0.0",
+    "typescript": "^3.2.2"
+  },
+  "dependencies": {
+    "@jscad/scad-api": "^0.5.1",
+    "clipper-lib": "^6.2.1",
+    "makerjs": "^0.13.1",
+    "sax": "^1.2.4",
+    "shape2path": "^2.0.3"
+  }
+}
