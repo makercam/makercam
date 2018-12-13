@@ -122,16 +122,16 @@ const make: Make = {
         if (!measurement) {
             return {}
         }
-        var line = new maker.paths.Line([-1, 0], [measurement.width + 1, 0]);
-        var count = measurement.height / margin + 1;
+        var line = new maker.paths.Line([0, 0], [measurement.width + 2, 0]);
+        var count = Math.ceil(measurement.height / margin)
         var lines = maker.layout.cloneToColumn(line, count, margin);
-        lines.origin = maker.point.subtract(measurement.low, [1.00102, 1.00102])
+        lines.origin = maker.point.subtract(measurement.low, [1, 0])
         if (offset) {
             maker.model.moveRelative(lines, [0, offset]);
         }
         var clone = maker.cloneObject(modelToRasterize)
-        maker.model.combine(clone, lines, true, true, true, true, {
-            pointMatchingDistance: .01,
+        maker.model.combine(clone, lines, true, true, true, false, {
+            pointMatchingDistance: .00001,
         });
         Object.values(lines.paths || {}).forEach((path: any, i: number) => {
             if (i % 2 === 0) {

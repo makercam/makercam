@@ -15,6 +15,7 @@ const JoinTypes = [
     ClipperLib.JoinType.jtMiter
 ]
 
+
 function clipperOffset(modelToOutline: maker.IModel, offset: number, joints: number = 0) {
     const scale = 100
     const chains = maker.model.findChains(modelToOutline) as maker.IChain[]
@@ -32,10 +33,6 @@ function clipperOffset(modelToOutline: maker.IModel, offset: number, joints: num
                 })
             )
         ]
-        paths = ClipperLib.Clipper.SimplifyPolygons(paths, ClipperLib.PolyFillType.pftNonZero);
-        // const cleanDelta = 0.001
-        // paths = ClipperLib.JS.Clean(paths, cleanDelta * scale);
-        // const endType = EndTypes.etClosedPolygon
         const co = new ClipperLib.ClipperOffset()
         const offsetted = new ClipperLib.Paths()
         co.Clear()
