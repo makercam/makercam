@@ -1,10 +1,9 @@
 /// <reference path="./index.d.ts" />
-import './jscadOffset'
-
+import * as openjscam from '@makercam/openjscam'
 import * as maker from 'makerjs'
-import * as openjscam from 'openjscam'
 
 import mk from './make'
+
 
 export interface ITool {
     diameter: number
