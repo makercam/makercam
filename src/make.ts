@@ -64,11 +64,13 @@ export interface Make {
     zero: typeof maker.model.zero
     ellipse: typeof maker.models.Ellipse.constructor
     offset: (modelToOutline: maker.IModel, offset: number, joints?: number) => maker.IModel
-    clipperOffset: (modelToOutline: maker.IModel, offset: number, joints?: number) => maker.IModel
+    clipperOffset: (modelToOutline: maker.IModel, offset: number, joints?: number, tolerance?: number) => maker.IModel
     angusOffset: (modelToOutline: maker.IModel, offset: number, joints?: number) => maker.IModel
     raster: (modelToRasterize: maker.IModel, margin: number, offset?: number) => maker.IModel
     toKeyPoints: (drawing: maker.IModel, tolerance?: number) => maker.IPoint[]
     fromSvg(svg: string): maker.IModel
+    view: (model: maker.IModel, containerEl?: HTMLElement) => void,
+    models: (...args: maker.IModel[]) => maker.IModel
 }
 
 const make: Make = {
@@ -145,8 +147,8 @@ const make: Make = {
     offset: (modelToOutline: maker.IModel, offset: number, joints: number = 0) => {
         return maker.model.outline(modelToOutline, Math.abs(offset), joints, offset < 0)
     },
-    clipperOffset: (modelToOutline: maker.IModel, offset: number, joints: number = 0) => {
-        return clipperOffset(modelToOutline, offset, joints)
+    clipperOffset: (modelToOutline: maker.IModel, offset: number, joints: number = 0, tolerance?: number) => {
+        return clipperOffset(modelToOutline, offset, joints, tolerance)
     },
     angusOffset: (modelToOutline: maker.IModel, offset: number, joints: number = 0) => {
         return angusOffset(modelToOutline, offset, joints)
@@ -165,7 +167,22 @@ const make: Make = {
         var divisions = Math.floor(chain.pathLength / minimumSpacing);
         var spacing = chain.pathLength / divisions;
         var keyPoints = maker.chain.toKeyPoints(chain, spacing);
+        if (chain.endless) {
+            keyPoints.push(keyPoints[0])
+        }
         return keyPoints
+    },
+    view(model: maker.IModel, containerEl?: HTMLElement) {
+        (containerEl || document.body).innerHTML = maker.exporter.toSVG(model)
+    },
+    models(...args: maker.IModel[]) {
+        return {
+            models: args.reduce((memo, model, i) => {
+                // @ts-ignore
+                memo[i] = model
+                return memo
+            }, {})
+        }
     },
     fromSvg(svg: string): maker.IModel {
         const parser = sax.parser(false, {trim: true, lowercase: false, position: true})
