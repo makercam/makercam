@@ -1,6 +1,6 @@
 {
   "name": "@makercam/makercam",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -16,7 +16,7 @@
     "typescript": "^3.2.2"
   },
   "dependencies": {
-    "@makercam/openjscam": "0.0.4",
+    "@makercam/openjscam": "0.0.5",
     "clipper-lib": "^6.2.1",
     "js-angusj-clipper": "^1.0.0",
     "makerjs": "^0.13.1",
