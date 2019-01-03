@@ -4,6 +4,7 @@ import * as shape2path from 'shape2path'
 
 import angusOffset from './angusOffset'
 import clipperOffset from './clipperOffset'
+import Drawing from './drawing'
 
 export interface Make {
     $: typeof maker.$
@@ -70,7 +71,8 @@ export interface Make {
     toKeyPoints: (drawing: maker.IModel, tolerance?: number) => maker.IPoint[]
     fromSvg(svg: string): maker.IModel
     view: (model: maker.IModel, containerEl?: HTMLElement) => void,
-    models: (...args: maker.IModel[]) => maker.IModel
+    models: (...args: maker.IModel[]) => maker.IModel,
+    draw: () => Drawing
 }
 
 const make: Make = {
@@ -184,7 +186,7 @@ const make: Make = {
             }, {})
         }
     },
-    fromSvg(svg: string): maker.IModel {
+    fromSvg(svg: string, scale = 0.35277848333): maker.IModel {
         const parser = sax.parser(false, {trim: true, lowercase: false, position: true})
         parser.onerror = (e: any) => console.log('error: line ' + e.line + ', column ' + e.column + ', bad character [' + e.c + ']')
         const models: any = {}
@@ -193,7 +195,8 @@ const make: Make = {
             rectangles: 0,
             circles: 0,
             lines: 0,
-            paths: 0
+            paths: 0,
+            polygons: 0
         }
         parser.onopentag = function (node: any) {
             switch (node.name) {
@@ -215,12 +218,13 @@ const make: Make = {
                     counts.circles++
                     break;
                 case 'RECT':
-                    models['rect_' + counts.rectangles] = maker.importer.fromSVGPathData(shape2path.rect({
-                        x: Number(node.attributes.X),
-                        y: Number(node.attributes.Y),
+                    const opts = {
+                        x: Number(node.attributes.X || '0'),
+                        y: Number(node.attributes.Y || '0'),
                         width: Number(node.attributes.WIDTH),
                         height: Number(node.attributes.HEIGHT),
-                    }))
+                    }
+                    models['rect_' + counts.rectangles] = maker.importer.fromSVGPathData(shape2path.rect(opts))
                     counts.rectangles++
                     break;
                 case 'LINE':
@@ -236,12 +240,21 @@ const make: Make = {
                     models['path_' + counts.paths] = maker.importer.fromSVGPathData(node.attributes.D)
                     counts.paths++
                     break;
+                case 'POLYGON':
+                    models['polygon_' + counts.polygons] = maker.importer.fromSVGPathData(shape2path.polygon({
+                        points: node.attributes.POINTS
+                    }))
+                    counts.polygons++
+                    break;
             }
         }
         parser.write(svg).close()
-        return {
+        return this.scale({
             models
-        } as maker.IModel
+        }, scale) as maker.IModel
+    },
+    draw: () => {
+        return new Drawing()
     }
 }
 

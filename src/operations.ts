@@ -31,6 +31,14 @@ export interface IPocketOperation extends IOperation {
     depthPerPass: number
 }
 
+export interface IParallelOperation extends IOperation {
+    type: 'parallel'
+    tolerance: number
+    stockToLeave: number
+    depth: number
+    depthPerPass: number
+}
+
 export interface IContourOperation extends IOperation {
     type: 'contour'
     tolerance: number
@@ -47,7 +55,7 @@ export interface ITraceOperation extends IOperation {
     depthPerPass: number
 }
 
-export type IAnyOperation = IPocketOperation | IContourOperation | ITraceOperation
+export type IAnyOperation = IParallelOperation | IPocketOperation | IContourOperation | ITraceOperation
 
 export function trace(model: maker.IModel, operation: ITraceOperation) {
     const { depth, depthPerPass, zSafe, tolerance } = operation
@@ -73,6 +81,45 @@ export function trace(model: maker.IModel, operation: ITraceOperation) {
 }
 
 export function pocket(model: maker.IModel, operation: IPocketOperation) {
+    const { stockToLeave, depth, depthPerPass, zSafe, tolerance, tool: { diameter: toolDiameter} } = operation
+    const toolRadius = toolDiameter / 2
+    const inset = toolRadius + stockToLeave
+    const insets: maker.IModel[] = []
+    let lastInset = mk.clipperOffset(model, -inset, 2, tolerance || 0.1)
+    while (Object.keys(lastInset.models!).length > 0) {
+        insets.push(lastInset)
+        lastInset = mk.clipperOffset(model, -toolRadius * (insets.length + 1), 2, tolerance || 0.1)
+    }
+    insets.reverse()
+    openjscam.rapid({ z: zSafe })
+    for (var pass = 1; pass <= Math.ceil(depth / depthPerPass); pass++) {
+        let z = pass * depthPerPass
+        if (z > depth) {
+            z = depth
+        }
+        insets.forEach((inset, i) => {
+            if (i !== insets.length - 1) {
+                const chains = maker.model.findChains(inset) as maker.IChain[]
+                chains.forEach(chain => {
+                    const filletsModel = maker.chain.fillet(chain, toolRadius / 4);
+                    if (filletsModel) {
+                        inset.models!.fillets = filletsModel
+                    }
+                })
+            }
+            const points = mk.toKeyPoints(inset, tolerance)
+            openjscam.rapid({ x: points[0][0], y: points[0][1] })
+            openjscam.cut({ z: -z })
+            points.map((point) => {
+                openjscam.cut({ x: point[0], y: point[1] })
+            })
+            openjscam.rapid({ z: zSafe })
+        })
+    }
+    return mk.models(...insets)
+}
+
+export function parallel(model: maker.IModel, operation: IParallelOperation) {
     const { stockToLeave, depth, depthPerPass, zSafe, tolerance, tool: { diameter: toolDiameter} } = operation
     const toolRadius = toolDiameter / 2
     const inset = toolRadius + stockToLeave
@@ -212,6 +259,12 @@ export function cnc(drawing: maker.IModel, operations: IAnyOperation[], outModel
                     } else if (operation.type === 'contour') {
                         const id = `contour_${Object.keys(outModels).length}_${operation.id}`
                         outModels[id] = contour(
+                            maker.cloneObject(model),
+                            operation
+                        )
+                    } else if (operation.type === 'parallel') {
+                        const id = `parallel_${Object.keys(outModels).length}_${operation.id}`
+                        outModels[id] = parallel(
                             maker.cloneObject(model),
                             operation
                         )
