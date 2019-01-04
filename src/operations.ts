@@ -18,47 +18,106 @@ export interface IOperation {
     id?: string
     tool: ITool,
     zSafe: number,
-    layers: string[],
+    layers?: string[],
     feedRate: number,
     plungeRate: number
 }
 
 export interface IPocketOperation extends IOperation {
     type: 'pocket'
-    tolerance: number
-    stockToLeave: number
     depth: number
     depthPerPass: number
+    tolerance: number
+    stockToLeave: number
 }
 
 export interface IParallelOperation extends IOperation {
     type: 'parallel'
-    tolerance: number
-    stockToLeave: number
     depth: number
     depthPerPass: number
+    tolerance: number
+    stockToLeave: number
 }
 
 export interface IContourOperation extends IOperation {
     type: 'contour'
-    tolerance: number
-    outside: boolean
     depth: number
     depthPerPass: number
+    tolerance: number
+    outside: boolean
     tabs?: ITabOptions
 }
 
 export interface ITraceOperation extends IOperation {
     type: 'trace'
-    tolerance: number
     depth: number
     depthPerPass: number
+    tolerance: number
 }
 
 export type IAnyOperation = IParallelOperation | IPocketOperation | IContourOperation | ITraceOperation
 
+export function pocketOperation(tool: ITool, depth: number, zSafe: number, feedRate: number, layers?: string[], depthPerPass?: number, plungeRate?: number, tolerance?: number, stockToLeave?: number): IPocketOperation {
+    return {
+        type: 'pocket',
+        layers,
+        tool,
+        zSafe,
+        feedRate,
+        depth,
+        depthPerPass: depthPerPass === undefined ? depth : depthPerPass,
+        plungeRate: plungeRate === undefined ? Math.round(feedRate / 3) : plungeRate,
+        tolerance: tolerance === undefined ? 0.01 : tolerance,
+        stockToLeave: stockToLeave === undefined ? 0 : stockToLeave
+    }
+}
+
+export function contourOperation(tool: ITool, depth: number, zSafe: number, feedRate: number, outside: boolean, layers?: string[], depthPerPass?: number, plungeRate?: number, tolerance?: number): IContourOperation {
+    return {
+        type: 'contour',
+        layers,
+        tool,
+        zSafe,
+        feedRate,
+        depth,
+        depthPerPass: depthPerPass === undefined ? depth : depthPerPass,
+        plungeRate: plungeRate === undefined ? Math.round(feedRate / 3) : plungeRate,
+        tolerance: tolerance === undefined ? 0.01 : tolerance,
+        outside
+    }
+}
+
+export function traceOperation(tool: ITool, depth: number, zSafe: number, feedRate: number, layers?: string[], depthPerPass?: number, plungeRate?: number, tolerance?: number): ITraceOperation {
+    return {
+        type: 'trace',
+        layers,
+        tool,
+        zSafe,
+        feedRate,
+        depth,
+        depthPerPass: depthPerPass === undefined ? depth : depthPerPass,
+        plungeRate: plungeRate === undefined ? Math.round(feedRate / 3) : plungeRate,
+        tolerance: tolerance === undefined ? 0.01 : tolerance
+    }
+}
+
+export function parallelOperation(tool: ITool, depth: number, zSafe: number, feedRate: number, layers?: string[], depthPerPass?: number, plungeRate?: number, tolerance?: number, stockToLeave?: number): IParallelOperation {
+    return {
+        type: 'parallel',
+        layers,
+        tool,
+        zSafe,
+        feedRate,
+        depth,
+        depthPerPass: depthPerPass === undefined ? depth : depthPerPass,
+        plungeRate: plungeRate === undefined ? Math.round(feedRate / 3) : plungeRate,
+        tolerance: tolerance === undefined ? 0.01 : tolerance,
+        stockToLeave: stockToLeave === undefined ? 0 : stockToLeave
+    }
+}
+
 export function trace(model: maker.IModel, operation: ITraceOperation) {
-    const { depth, depthPerPass, zSafe, tolerance } = operation
+    const { plungeRate, feedRate, depth, depthPerPass, zSafe, tolerance } = operation
     const points = mk.toKeyPoints(model, tolerance)
     openjscam.rapid({ z: zSafe })
     for (var pass = 1; pass <= Math.ceil(depth / depthPerPass); pass++) {
@@ -67,7 +126,9 @@ export function trace(model: maker.IModel, operation: ITraceOperation) {
             z = depth
         }
         openjscam.rapid({ x: points[0][0], y: points[0][1] })
+        openjscam.feed(plungeRate)
         openjscam.cut({ z: -z })
+        openjscam.feed(feedRate)
         points.map((point) => {
             openjscam.cut({ x: point[0], y: point[1] })
         })
@@ -80,8 +141,12 @@ export function trace(model: maker.IModel, operation: ITraceOperation) {
     }
 }
 
-export function pocket(model: maker.IModel, operation: IPocketOperation) {
-    const { stockToLeave, depth, depthPerPass, zSafe, tolerance, tool: { diameter: toolDiameter} } = operation
+function dist(from: maker.IPoint, to: maker.IPoint) {
+    return Math.pow(from[0] - to[0], 2) + Math.pow(from[1] - to[1], 2);
+}
+
+function pocket(model: maker.IModel, operation: IPocketOperation) {
+    const { stockToLeave, plungeRate, feedRate, depth, depthPerPass, zSafe, tolerance, tool: { diameter: toolDiameter} } = operation
     const toolRadius = toolDiameter / 2
     const inset = toolRadius + stockToLeave
     const insets: maker.IModel[] = []
@@ -91,39 +156,46 @@ export function pocket(model: maker.IModel, operation: IPocketOperation) {
         lastInset = mk.clipperOffset(model, -toolRadius * (insets.length + 1), 2, tolerance || 0.1)
     }
     insets.reverse()
+    const all: maker.IPoint[] = insets.reduce((memo: maker.IPoint[], inset, i) => {
+        const points = mk.toKeyPoints(inset, tolerance)
+        if (i === 0) return memo.concat(points)
+        const min: any = {
+            distance: Infinity,
+            point: null
+        }
+        points.forEach(point => {
+            const distance = dist(point, memo[memo.length - 1])
+            if (distance < min.distance) {
+                min.distance = distance
+                min.point = point
+            }
+        })
+        const index = points.indexOf(min.point)
+        return memo.concat(points.slice(index), points.slice(0, index + 1))
+    }, [])
     openjscam.rapid({ z: zSafe })
     for (var pass = 1; pass <= Math.ceil(depth / depthPerPass); pass++) {
         let z = pass * depthPerPass
         if (z > depth) {
             z = depth
         }
-        insets.forEach((inset, i) => {
-            if (i !== insets.length - 1) {
-                const chains = maker.model.findChains(inset) as maker.IChain[]
-                chains.forEach(chain => {
-                    const filletsModel = maker.chain.fillet(chain, toolRadius / 4);
-                    if (filletsModel) {
-                        inset.models!.fillets = filletsModel
-                    }
-                })
-            }
-            const points = mk.toKeyPoints(inset, tolerance)
-            openjscam.rapid({ x: points[0][0], y: points[0][1] })
-            openjscam.cut({ z: -z })
-            points.map((point) => {
-                openjscam.cut({ x: point[0], y: point[1] })
-            })
-            openjscam.rapid({ z: zSafe })
+        openjscam.rapid({ x: all[0][0], y: all[0][1] })
+        openjscam.feed(plungeRate)
+        openjscam.cut({ z: -z })
+        openjscam.feed(feedRate)
+        all.map((point) => {
+            openjscam.cut({ x: point[0], y: point[1] })
         })
+        openjscam.rapid({ z: zSafe })
     }
-    return mk.models(...insets)
+    return new maker.models.ConnectTheDots(false, all)
 }
 
-export function parallel(model: maker.IModel, operation: IParallelOperation) {
-    const { stockToLeave, depth, depthPerPass, zSafe, tolerance, tool: { diameter: toolDiameter} } = operation
+function parallel(model: maker.IModel, operation: IParallelOperation) {
+    const { stockToLeave, feedRate, plungeRate, depth, depthPerPass, zSafe, tolerance, tool: { diameter: toolDiameter} } = operation
     const toolRadius = toolDiameter / 2
     const inset = toolRadius + stockToLeave
-    const insetted = mk.clipperOffset(model, -inset, 2, tolerance || 0.1)
+    const insetted = mk.clipperOffset(model, -inset, 2, tolerance)
     if (Object.keys(insetted.models!).length === 0) {
         return {}
     }
@@ -144,7 +216,9 @@ export function parallel(model: maker.IModel, operation: IParallelOperation) {
                     x: (path.origin ? path.origin[0] : 0) + (raster.origin ? raster.origin[0] : 0),
                     y: (path.origin ? path.origin[1] : 0) + (raster.origin ? raster.origin[1] : 0),
                 })
+                openjscam.feed(plungeRate)
                 openjscam.cut({ z: -z })
+                openjscam.feed(feedRate)
                 openjscam.cut({
                     x: path.end[0] + raster.origin![0],
                     y: path.end[1] + raster.origin![1]
@@ -156,10 +230,10 @@ export function parallel(model: maker.IModel, operation: IParallelOperation) {
     return rasters as maker.IModel
 }
 
-export function contour(model: maker.IModel, operation: IContourOperation) {
+function contour(model: maker.IModel, operation: IContourOperation) {
     const { outside, depth, depthPerPass, feedRate, plungeRate, tabs, zSafe, tolerance, tool: { diameter: toolDiameter} } = operation
     const toolRadius = toolDiameter / 2
-    let offsetted = mk.clipperOffset(model, outside ? toolRadius : -toolRadius, 2, operation.tolerance || 0.1)
+    let offsetted = mk.clipperOffset(model, outside ? toolRadius : -toolRadius, 2, tolerance)
     if (Object.keys(offsetted.models!).length === 0) {
         return {}
     }
@@ -175,7 +249,7 @@ export function contour(model: maker.IModel, operation: IContourOperation) {
         let tabDepth: number
         const cutPoints: maker.IPoint[][] = []
         const tabsPoints: maker.IPoint[][] = []
-        if (typeof tabs !== 'undefined') {
+        if (tabs !== undefined) {
             const { amount: amountOfTabs, width: tabWidth, height: tabHeight } = tabs
             tabStart = depth - tabHeight
             const tabInterval = Math.floor(points.length / amountOfTabs)
@@ -245,6 +319,9 @@ export function cnc(drawing: maker.IModel, operations: IAnyOperation[], outModel
         byLayers: true
     })
     operations.forEach((operation) => {
+        if (operation.layers === undefined) {
+            operation.layers = Object.keys(chains)
+        }
         operation.layers.forEach(layer => {
             if (chains[layer]) {
                 const chainsForLayer = chains[layer]

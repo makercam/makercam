@@ -15,7 +15,6 @@ const JoinTypes = [
     ClipperLib.JoinType.jtMiter
 ]
 
-
 function clipperOffset(modelToOutline: maker.IModel, offset: number, joints: number = 0, tolerance: number = 0.1): maker.IModel {
     const scale = 1000
     const chains = maker.model.findChains(modelToOutline) as maker.IChain[]
