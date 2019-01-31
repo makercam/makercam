@@ -198,8 +198,14 @@ const make: Make = {
             paths: 0,
             polygons: 0
         }
+        let activeGroup: string | null = null
         parser.onopentag = function (node: any) {
             switch (node.name) {
+                case 'G':
+                    if (node.attributes.hasOwnProperty('ID')) {
+                        activeGroup = node.attributes.ID
+                    }
+                    break;
                 case 'ELLIPSE':
                     models['ellipse_' + counts.ellipses] = maker.importer.fromSVGPathData(shape2path.ellipse({
                         cx: Number(node.attributes.CX),
@@ -207,6 +213,7 @@ const make: Make = {
                         rx: Number(node.attributes.RX),
                         ry: Number(node.attributes.RY),
                     }))
+                    if (activeGroup !== null) models['ellipse_' + counts.ellipses].layer = activeGroup
                     counts.ellipses++
                     break;
                 case 'CIRCLE':
@@ -215,6 +222,7 @@ const make: Make = {
                         cy: Number(node.attributes.CY),
                         r: Number(node.attributes.R)
                     }))
+                    if (activeGroup !== null) models['circle_' + counts.circles].layer = activeGroup
                     counts.circles++
                     break;
                 case 'RECT':
@@ -225,6 +233,7 @@ const make: Make = {
                         height: Number(node.attributes.HEIGHT),
                     }
                     models['rect_' + counts.rectangles] = maker.importer.fromSVGPathData(shape2path.rect(opts))
+                    if (activeGroup !== null) models['rect_' + counts.rectangles].layer = activeGroup
                     counts.rectangles++
                     break;
                 case 'LINE':
@@ -234,16 +243,19 @@ const make: Make = {
                         y1: Number(node.attributes.Y1),
                         y2: Number(node.attributes.Y2),
                     }))
+                    if (activeGroup !== null) models['line_' + counts.lines].layer = activeGroup
                     counts.lines++
                     break;
                 case 'PATH':
                     models['path_' + counts.paths] = maker.importer.fromSVGPathData(node.attributes.D)
+                    if (activeGroup !== null) models['path_' + counts.paths].layer = activeGroup
                     counts.paths++
                     break;
                 case 'POLYGON':
                     models['polygon_' + counts.polygons] = maker.importer.fromSVGPathData(shape2path.polygon({
                         points: node.attributes.POINTS
                     }))
+                    if (activeGroup !== null) models['polygon_' + counts.polygons].layer = activeGroup
                     counts.polygons++
                     break;
             }

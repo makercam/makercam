@@ -203,7 +203,7 @@ function parallel(model: maker.IModel, operation: IParallelOperation) {
         models: {}
     }
     Object.keys(insetted.models!).forEach(id => {
-        const raster = mk.raster(insetted.models![id], toolRadius)
+        const raster = mk.raster(maker.cloneObject(insetted.models![id]), toolRadius)
         rasters[id] = raster
         openjscam.rapid({ z: zSafe })
         for (var pass = 1; pass <= Math.ceil(depth / depthPerPass); pass++) {
@@ -211,7 +211,7 @@ function parallel(model: maker.IModel, operation: IParallelOperation) {
             if (z > depth) {
                 z = depth
             }
-            Object.values(raster.paths || {}).forEach((path: any) => {
+            Object.values(raster.paths || {}).forEach((path: any, i: number) => {
                 openjscam.rapid({
                     x: (path.origin ? path.origin[0] : 0) + (raster.origin ? raster.origin[0] : 0),
                     y: (path.origin ? path.origin[1] : 0) + (raster.origin ? raster.origin[1] : 0),
@@ -356,7 +356,10 @@ export function cnc(drawing: maker.IModel, operations: IAnyOperation[], outModel
             }
         })
     })
-    return {
+    const toolpaths: maker.IModel = {
         models: outModels
-    } as maker.IModel
+    }
+    // const bbox = maker.measure.modelExtents(toolpaths)
+    // console.log(`(W: ${bbox.width}, H: ${bbox.height}, LOWX: ${bbox.low[0]}, LOWY: ${bbox.low[1]})`)
+    return toolpaths
 }
